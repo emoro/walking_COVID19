@@ -6,7 +6,7 @@ library(ggplot2)
 library(patchwork)
 library(scales)
 library(stringr)
-
+library(stargazer)
 
 #visualization settings
 source("./visualization_settings.R")
@@ -87,7 +87,7 @@ require(spdep)
 w <- poly2nb(map_before_sp, row.names=map_before_sp$GEOID)
 nn <- unlist(lapply(w,sum))
 map_before <- map_before[which(nn!=0),]
-#recalculate without no neighbors
+#recalculate without polygons with no neighbors
 map_before_sp <- as(map_before,"Spatial")
 w <- poly2nb(map_before_sp, row.names=map_before_sp$GEOID)
 wm <- nb2mat(w, style='B',zero.policy = T)
@@ -101,7 +101,36 @@ summary(fit_before)
 #Spatially lagged fit before
 require(spatialreg)
 fit_before_lag <- lagsarlm(td~scale(income) + scale(fblack) + scale(fpublic) + 
-                             scale(fage64) + scale(Park_access) + scale(OBESITY_CrudePrev) + 
+                             scale(fage64) + scale(Park_access) + 
+                             scale(OBESITY_CrudePrev) + 
                              factor(MSA),data=map_before,rwm,zero.policy = TRUE,quiet = F)
 
 #### Model after
+map_after<- merge(map_sf,na.omit(wwt_after),by="GEOID")
+#calculate the neighbors of each tract
+map_after_sp <- as(map_after,"Spatial")
+#remove the polygons with no neighbors
+w <- poly2nb(map_after_sp, row.names=map_after_sp$GEOID)
+nn <- unlist(lapply(w,sum))
+map_after <- map_after[which(nn!=0),]
+#recalculate without polygons with no neighbors
+map_after_sp <- as(map_after,"Spatial")
+w <- poly2nb(map_after_sp, row.names=map_after_sp$GEOID)
+wm <- nb2mat(w, style='B',zero.policy = T)
+rwm <- mat2listw(wm, style='W')
+
+#OLS fit after
+fit_after <- lm(td~scale(income) + scale(fblack) + scale(fpublic) + scale(fage64) + scale(Park_access) + scale(OBESITY_CrudePrev) + factor(MSA),data=map_after)
+map_after$res_fit1 <- residuals(fit_after)
+summary(fit_after)
+
+#Spatially lagged fit after
+require(spatialreg)
+fit_after_lag <- lagsarlm(td~scale(income) + scale(fblack) + scale(fpublic) + 
+                            scale(fage64) + scale(Park_access) + 
+                            scale(OBESITY_CrudePrev) + 
+                            factor(MSA),data=map_after,rwm,zero.policy = TRUE,quiet = F)
+
+
+stargazer(fit_before,fit_before_lag,fit_after,fit_after_lag,omit="factor",type = "text")
+
